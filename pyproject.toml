@@ -5,7 +5,7 @@ build-backend = "flit_core.buildapi"
 [project]
 name =  "py-project-toml"
 authors = [
-    {name = "Daniel Ciborowski", email = "dciborow@microsoft.com"},
+    {name = "Justin Sutcliff", email = "justins210@gmail.com"},
 ]
 description = "Sample Python Project for creating a new Python Module"
 readme = "README.md"
@@ -17,10 +17,16 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11"
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13"
 ]
 requires-python = ">=3.8.1"
 dynamic = ["version"]
+
+dependencies = [
+  "symforce==0.9.0"
+]
 
 [project.optional-dependencies]
 spark = [
@@ -52,7 +58,7 @@ Source = "https://github.com/microsoft/python-package-template"
 Tracker = "https://github.com/microsoft/python-package-template/issues"
 
 [tool.flit.module]
-name = "python_package"
+name = "spectre"
 
 [tool.bandit]
 exclude_dirs = ["build","dist","tests","scripts"]
