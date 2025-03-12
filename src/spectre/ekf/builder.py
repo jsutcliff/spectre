@@ -1,4 +1,4 @@
-from typing import Callable, Tuple, Sequence
+from typing import Callable, Tuple, Sequence, Dict, Union, Any, Protocol
 
 from symforce import symbolic as sf
 
@@ -42,16 +42,20 @@ class EKFBuilder(BaseBuilder):
     def set_parameter_vector(self, variables: Sequence[str]):
         self.ParameterVector.VARIABLES = variables
 
-    def set_process_model_func(self, func: Callable[[StateVector, ControlVector, ParameterVector], StateVector]):
+    def set_process_model_func(self, func):
         # TODO verify signature
         self.process_model_func_ = func
 
-    def process_model_(self, x: sf.Matrix, u: sf.Matrix, p: sf.Matrix) -> sf.Matrix:
-        x_named = self.StateVector(x)
-        u_named = self.ControlVector(u)
-        p_named = self.ParameterVector(p)
+    def process_model_(self, x: sf.Matrix, **kwargs: sf.Matrix) -> sf.Matrix:
+        args: Dict[str, Any] = {"x": self.StateVector(x)}
 
-        return self.process_model_func_(x_named, u_named, p_named).as_matrix()
+        if "u" in kwargs:
+            args["u"] = self.ControlVector(kwargs["u"])
+
+        if "p" in kwargs:
+            args["p"] = self.ParameterVector(kwargs["p"])
+
+        return self.process_model_func_(**args).as_matrix()
 
     def set_process_covariance_func(
         self, func: Callable[[StateVector, ControlVector, ParameterVector, sf.Scalar], StateMatrix]
@@ -59,49 +63,58 @@ class EKFBuilder(BaseBuilder):
         # TODO verify signature
         self.process_covariance_func_ = func
 
-    def process_covariance_(self, x: sf.Matrix, u: sf.Matrix, p: sf.Matrix, dt: sf.Scalar) -> sf.Matrix:
-        x_named = self.StateVector(x)
-        u_named = self.ControlVector(u)
-        p_named = self.ParameterVector(p)
+    def process_covariance_(self, dt: sf.Scalar, x: sf.Matrix, **kwargs: sf.Matrix) -> sf.Matrix:
+        args: Dict[str, Any] = {"dt": dt, "x": self.StateVector(x)}
 
-        return self.process_covariance_func_(x_named, u_named, p_named, dt)
+        if "u" in kwargs:
+            args["u"] = self.ControlVector(kwargs["u"])
+
+        if "p" in kwargs:
+            args["p"] = self.ParameterVector(kwargs["p"])
+
+        return self.process_covariance_func_(**args)
 
     def set_post_state_update_func(
         self, func: Callable[[StateVector, StateMatrix, ParameterVector], Tuple[StateVector, StateMatrix]]
     ):
         self.post_state_update_func_ = func
 
-    def post_state_update_(self, x: sf.Matrix, P: sf.Matrix, p: sf.Matrix) -> Tuple[sf.Matrix, sf.Matrix]:
-        x_named = self.StateVector(x)
-        P_named = self.StateMatrix(P)
-        p_named = self.ParameterVector(p)
+    def post_state_update_(self, x: sf.Matrix, P: sf.Matrix, **kwargs: sf.Matrix) -> Tuple[sf.Matrix, sf.Matrix]:
+        args: Dict[str, Any] = {"x": self.StateVector(x), "P": self.StateMatrix(P)}
 
-        result = self.post_state_update_func_(x_named, P_named, p_named)
+        if "u" in kwargs:
+            args["u"] = self.ControlVector(kwargs["u"])
+
+        if "p" in kwargs:
+            args["p"] = self.ParameterVector(kwargs["p"])
+
+        result = self.post_state_update_func_(**args)
 
         return (result[0].as_matrix(), result[1])
 
-    def compute_state_transition_(self, x: sf.Matrix, u: sf.Matrix, p: sf.Matrix, dt: sf.Scalar):
+    def compute_state_transition_(self, dt: sf.Scalar, x: sf.Matrix, **kwargs: sf.Matrix):
         """
         A = df/dx       --> Jacobian of system model wrt state
         F = expm(A*dt)  --> state transition matrix
         """
 
-        xdot = self.process_model_(x, u, p)
+        xdot = self.process_model_(x=x, **kwargs)
+
         A = xdot.jacobian(x)
         F = expm(A * dt)
 
         return F
 
     def compute_prior_(
-        self, x: sf.Matrix, P: sf.Matrix, u: sf.Matrix, p: sf.Matrix, dt: sf.Scalar
+        self, dt: sf.Scalar, x: sf.Matrix, P: sf.Matrix, **kwargs: sf.Matrix
     ) -> Tuple[sf.Matrix, sf.Matrix]:
 
         xdot_fun = self.process_model_
-        F = self.compute_state_transition_(x, u, p, dt)
-        Q = self.process_covariance_(x, u, p, dt)
+        F = self.compute_state_transition_(dt, x, **kwargs)
+        Q = self.process_covariance_(dt, x, **kwargs)
 
-        xhat = self.integrator_(xdot_fun, x, u, dt, p, num_steps=self.integrator_steps_)
+        xhat = self.integrator_(xdot_fun, dt, x, num_steps=self.integrator_steps_, **kwargs)
         Phat = F * P * F.T + Q
 
-        xhat, Phat = self.post_state_update_(xhat, Phat, p)
+        xhat, Phat = self.post_state_update_(xhat, Phat, **kwargs)
         return (xhat, Phat)

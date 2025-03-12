@@ -8,20 +8,31 @@ class NamedVector:
 
     def __init__(self, *args, **kwargs) -> None:
 
+        # Create actual matrix storage
         if not args and not kwargs:
             self.matrix_ = sf.Matrix(*self.shape)
         else:
             self.matrix_ = sf.Matrix(*args, **kwargs)
-            # TODO check shape
 
+        # Populate variable lookup dict
         self.variables_: Dict[str, int] = {}
 
         for i, name in enumerate(self.VARIABLES):
             self.variables_[name] = i
 
+        # Verify all is well
+        if self.shape != self.matrix_.SHAPE:
+            raise ValueError(
+                f"{self.__class__.__name__} shape: {self.shape} does not match sf.Matrix shape: {self.matrix_.SHAPE}"
+            )
+
     @property
     def shape(self):
         return (len(self.VARIABLES), 1)
+
+    @property
+    def empty(self):
+        return self.shape[0] > 0
 
     def as_matrix(self):
         return self.matrix_
@@ -64,16 +75,21 @@ class NamedVector:
         return self.matrix_[args]
 
     def __setitem__(self, key, value) -> None:
+        # Single string item
         if isinstance(key, str):
             self.check_variable(key)
             self.matrix_[self.variables_[key]] = value
             return
 
+        # List of strings and values
         if isinstance(key, (tuple, list)) and isinstance(value, (tuple, list)):
-            assert len(key) == len(value)
+            if len(key) != len(value):
+                raise ValueError(f"Number of variables: {len(key)} does not match number of values: {len(value)}")
 
             for k, v in zip(key, value):
-                assert isinstance(k, str)
+                if not isinstance(k, str):
+                    raise TypeError(f"Variable type expects str, got: {type(k)}")
+
                 self.check_variable(k)
                 self.matrix_[self.variables_[k]] = v
 

@@ -7,7 +7,7 @@ builder = EKFBuilder()
 builder.set_state_vector(["x", "y", "dx", "dy"])
 
 
-def process_model(x: EKFBuilder.StateVector, u: EKFBuilder.ControlVector, p: EKFBuilder.ParameterVector):
+def process_model(x: EKFBuilder.StateVector):
     x_dot = builder.StateVector()
 
     x_dot["x"] = x["dx"]
@@ -20,4 +20,17 @@ def process_model(x: EKFBuilder.StateVector, u: EKFBuilder.ControlVector, p: EKF
 
 builder.set_process_model_func(process_model)
 
-print(builder.process_model_(sf.Matrix([10, 20, 30, 40]), sf.Matrix([1]), sf.Matrix([2])))
+dt = 1.0
+x = sf.Symbol("x")
+y = sf.Symbol("y")
+dx = sf.Symbol("dx")
+dy = sf.Symbol("dy")
+state = sf.Matrix([x, y, dx, dy])
+P = sf.Matrix([[sf.Symbol(f"p_{i}{j}") for i in range(4)] for j in range(4)])
+
+print(state)
+print(builder.process_model_(state))
+print(builder.compute_state_transition_(dt, state))
+print(builder.process_covariance_(dt, state))
+print(builder.compute_state_transition_(dt, state))
+print(builder.compute_prior_(dt, state, P))
