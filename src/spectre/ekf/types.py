@@ -1,4 +1,4 @@
-from typing import Sequence, Dict
+from typing import Sequence, Dict, Tuple, List
 
 from symforce import symbolic as sf
 
@@ -10,7 +10,7 @@ class NamedVector:
 
         # Create actual matrix storage
         if not args and not kwargs:
-            self.matrix_ = sf.Matrix(*self.shape)
+            self.matrix_ = sf.Matrix(self.length, 1)
         else:
             self.matrix_ = sf.Matrix(*args, **kwargs)
 
@@ -21,23 +21,34 @@ class NamedVector:
             self.variables_[name] = i
 
         # Verify all is well
-        if self.shape != self.matrix_.SHAPE:
-            raise ValueError(
-                f"{self.__class__.__name__} shape: {self.shape} does not match sf.Matrix shape: {self.matrix_.SHAPE}"
-            )
+        if self.length != self.matrix_.SHAPE:
+            raise ValueError(f"{self.__class__.__name__} shape: {self.length} does not match sf.Matrix shape: {self.matrix_.SHAPE}")
 
     @property
-    def shape(self):
-        return (len(self.VARIABLES), 1)
+    def length(self) -> int:
+        return len(self.VARIABLES)
 
     @property
-    def empty(self):
-        return self.shape[0] > 0
+    def empty(self) -> bool:
+        return self.length > 0
 
-    def as_matrix(self):
+    @property
+    def variables(self) -> List[str]:
+        return list(self.variables_.keys())
+
+    def as_matrix(self) -> sf.Matrix:
         return self.matrix_
 
-    def check_variable(self, key: str) -> bool:
+    @classmethod
+    def as_symbolic_matrix(cls) -> sf.Matrix:
+        symbols = [sf.Symbol(c) for c in cls.VARIABLES]
+        return sf.Matrix(symbols)
+
+    @classmethod
+    def is_configured(cls) -> bool:
+        return len(cls.VARIABLES) > 0
+
+    def _check_variable(self, key: str) -> bool:
         if key not in self.variables_:
             raise LookupError(f"{self.__class__.__name__} has no variable: '{key}'")
 
@@ -46,7 +57,7 @@ class NamedVector:
     def __getitem__(self, *args) -> sf.Matrix:
         # Single string
         if len(args) == 1 and isinstance(args[0], str):
-            self.check_variable(args[0])
+            self._check_variable(args[0])
             return self.matrix_[self.variables_[args[0]]]
 
         # 1D list of strings
@@ -55,7 +66,7 @@ class NamedVector:
 
             for arg in args[0]:
                 assert isinstance(arg, str)
-                self.check_variable(arg)
+                self._check_variable(arg)
                 output.append(self.matrix_[self.variables_[arg]])
 
             return sf.Matrix(output)
@@ -66,7 +77,7 @@ class NamedVector:
                 output = []
 
                 for arg in args:
-                    self.check_variable(arg)
+                    self._check_variable(arg)
                     output.append(self.matrix_[self.variables_[arg]])
 
                 return sf.Matrix(output)
@@ -77,7 +88,7 @@ class NamedVector:
     def __setitem__(self, key, value) -> None:
         # Single string item
         if isinstance(key, str):
-            self.check_variable(key)
+            self._check_variable(key)
             self.matrix_[self.variables_[key]] = value
             return
 
@@ -90,7 +101,7 @@ class NamedVector:
                 if not isinstance(k, str):
                     raise TypeError(f"Variable type expects str, got: {type(k)}")
 
-                self.check_variable(k)
+                self._check_variable(k)
                 self.matrix_[self.variables_[k]] = v
 
             return
