@@ -1,20 +1,54 @@
+import logging
 from typing import Type, Callable, Tuple, Any
 
 from symforce import symbolic as sf
 
-from .types import NamedVector
 
+def default_process_model(state_class: Type[Any]) -> Callable:
+    """Method for generating default process model function. It's not a good idea to use this unless state variables are not expected to change
 
-def default_process_model(state_class: Type[Any]):
+    Args:
+        state_class (Type[Any]): Type of state vector class. Usually EKFBuilder.StateVector
+
+    Returns:
+        Callable: Function the returns zeros the size of state_class
+    """
 
     def fcn():
         # Default zero derivative
+        logging.warning("Process model function not set, using default. Consider setting process model for nonzero state vector derivates")
         return state_class()
 
     return fcn
 
 
-def default_measurement_model(measurement_class: Type[Any]):
+def default_process_covariance(state_matrix: Type[Any]) -> Callable:
+    """Method for generating default process covariance function. Not a good idea to use this
+
+    Args:
+        state_class (Type[Any]): Type of state vector class. Usually EKFBuilder.StateVector
+
+    Returns:
+        Callable: Function the returns identity matrix the size of state_class
+    """
+
+    def fcn():
+        # Default identity
+        logging.warning("Process covariance function not set, using default (identity matrix)")
+        return state_matrix.eye()
+
+    return fcn
+
+
+def default_measurement_model(measurement_class: Type[Any]) -> Callable:
+    """Generates default measurement model function. Not a good idea to use this
+
+    Args:
+        measurement_class (Type[Any]): Type of measurement vector. Usually EKFBuilder.MeasurementVector
+
+    Returns:
+        Callable: Function that takes no arguments and returns zero vector of the appropraite size
+    """
 
     def fcn():
         # Default zero connection
@@ -23,38 +57,36 @@ def default_measurement_model(measurement_class: Type[Any]):
     return fcn
 
 
-def default_process_covariance(state_matrix: Type[Any]):
-
-    def fcn():
-        # Default identity
-        return state_matrix.eye()
-
-    return fcn
+def default_measurement_covarience():
+    return None
 
 
-def default_measurement_covarience(measurement_matrix: Type[Any]):
+def default_post_state_update() -> Callable:
+    """Generates default function to be called after the EKF state is modified
 
-    def fcn(dt: sf.Scalar, x: NamedVector, z: NamedVector):
-        # print(dt, x.as_matrix())
-
-        # Default zero derivative
-        covaraince = measurement_matrix.eye()
-
-        return covaraince
-
-    return fcn
-
-
-def default_residual(measurement_model_fcn):
-    def residual_func(xhat, z, **kwargs):
-        return z - measurement_model_fcn(xhat, **kwargs)
-
-    return residual_func
-
-
-def default_post_state_update():
+    Returns:
+        Callable: Function that simply passes all input parameters back as a tuple
+    """
 
     def fcn(x, p: sf.Matrix) -> Tuple[Any, sf.Matrix]:
+        logging.debug("Using default post state update function")
         return (x, p)
 
     return fcn
+
+
+def default_residual(measurement_model_fcn: Callable) -> Callable:
+    """Generates default residual function
+
+    Args:
+        measurement_model_fcn (Callable): Function that calculates a measurement vector from the current EKF state
+
+    Returns:
+        Callable: Function that simply returns the difference between input measurement vector 'z' and the measurement vector returned by measurement_model_fcn
+    """
+
+    def residual_func(xhat, z, **kwargs):
+        logging.debug("Using default residual function")
+        return z - measurement_model_fcn(xhat, **kwargs)
+
+    return residual_func

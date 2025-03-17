@@ -1,6 +1,12 @@
+import logging
+import os
 from spectre.ekf import EKFBuilder
 from symforce import symbolic as sf
+from pathlib import Path
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 builder = EKFBuilder()
 
@@ -8,6 +14,13 @@ builder.set_state_vector(["x", "y", "dx", "dy"])
 builder.set_control_vector(["fx", "fy"])
 builder.set_parameter_vector(["m"])
 builder.set_measurement_vector(["speed"])
+
+
+dirname = Path("ekf_codegen") / "python"
+for root, _, files in os.walk(dirname):
+    for filename in files:
+        if filename.endswith(".py"):
+            print(Path(dirname) / root / filename)
 
 
 def process_model(x: EKFBuilder.StateVector, u: EKFBuilder.ControlVector, params: EKFBuilder.ParameterVector):
@@ -32,33 +45,5 @@ def measurement_model(x: EKFBuilder.StateVector):
 builder.set_process_model_func(process_model)
 builder.set_measurement_model_func(measurement_model)
 
-dt = sf.Symbol("dt")
-x = sf.Symbol("x")
-y = sf.Symbol("y")
-dx = sf.Symbol("dx")
-dy = sf.Symbol("dy")
-state = sf.Matrix([x, y, dx, dy])
-P = sf.Matrix([[sf.Symbol(f"p_{i}{j}") for i in range(4)] for j in range(4)])
-
-meas_x = sf.Symbol("meas_x")
-meas_y = sf.Symbol("meas_y")
-meas_dx = sf.Symbol("meas_dx")
-meas_dy = sf.Symbol("meas_dy")
-speed = sf.Symbol("speed")
-meas = sf.Matrix([meas_x, meas_y, meas_dx, meas_dy, speed])
-
-measurement_mask = sf.Matrix([sf.Symbol(c) for c in "abcde"])
-
-print(state)
-# print(builder.process_model_(state))
-# print(builder.compute_state_transition_(dt, state))
-# print(builder.process_covariance_(dt, state))
-# print(builder.compute_state_transition_(dt, state))
-# print(builder.compute_prior_(dt, state, P))
-
-# print(builder.measurement_model_(state))
-# print(builder.compute_meas_transition_(state, measurement_mask))
-# # print(builder.compute_posterior_(dt, state, P, meas, measurement_mask)[1].SHAPE)
-
-
+builder.debug_print()
 builder.generate_cpp()

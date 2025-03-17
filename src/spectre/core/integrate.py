@@ -1,10 +1,21 @@
-import symforce.symbolic as sf
 from typing import Callable
+
+import symforce.symbolic as sf
 
 
 def euler(xdot_fn: Callable, dt: sf.Scalar, x: sf.Matrix, num_steps: int = 1, **kwargs: sf.Matrix) -> sf.Matrix:
-    """numerical integration via euler's method"""
-    # assert x.SHAPE == xdot.SHAPE
+    """Numerical integration using Euler's method
+
+    Args:
+        xdot_fn (Callable): Function to call to get derivatives
+        dt (sf.Scalar): Timestep in seconds
+        x (sf.Matrix): State vector to forward integrate
+        num_steps (int, optional): Number of integration steps. Defaults to 1.
+
+    Returns:
+        sf.Matrix: State vector after integration
+    """
+
     h = dt / num_steps
 
     for _ in range(num_steps):
@@ -14,8 +25,17 @@ def euler(xdot_fn: Callable, dt: sf.Scalar, x: sf.Matrix, num_steps: int = 1, **
 
 
 def rk4(xdot_fn: Callable, dt: sf.Scalar, x: sf.Matrix, num_steps: int = 1, **kwargs: sf.Matrix) -> sf.Matrix:
-    """numerical integration via RK4"""
-    # assert x.SHAPE == xdot.SHAPE
+    """Numerical integration using RK4
+
+    Args:
+        xdot_fn (Callable): Function to call to get derivatives
+        dt (sf.Scalar): Timestep in seconds
+        x (sf.Matrix): State vector to forward integrate
+        num_steps (int, optional): Number of integration steps. Defaults to 1.
+
+    Returns:
+        sf.Matrix: State vector after integration
+    """
     h = dt / num_steps
 
     for _ in range(num_steps):
@@ -31,6 +51,18 @@ def rk4(xdot_fn: Callable, dt: sf.Scalar, x: sf.Matrix, num_steps: int = 1, **kw
 
 
 def get_integrator(name: str) -> Callable:
+    """Helper function to get integrator from string
+
+    Args:
+        name (str): Name of integration from ["euler", "rk4"]
+
+    Raises:
+        NotImplementedError: If specified integrator was not recognized
+
+    Returns:
+        Callable: Integration function
+    """
+
     if name not in INTEGRATORS:
         raise NotImplementedError(f"Integrator: {name} not implemented")
 
