@@ -578,19 +578,25 @@ class EKFBuilder(BaseBuilder):
         logging.debug("Posterior updated state:\n%s", x_hat)
         logging.debug("Posterior updated uncertainty:\n%s", p_hat)
 
-    def generate_cpp(self, outupt_dir: str = "ekf_codegen", namespace: str = "ekf"):
-        config = CppConfig()
+    def generate(self, config, output_dir: str = "ekf_codegen", namespace: str = "ekf"):
+        shared_types = {"params": f"{namespace}.params_t"}
 
         inputs, outputs = self._get_compute_prior_io()
         codegen = Codegen(inputs=inputs, outputs=outputs, config=config, name="compute_prior")
-        metadata = codegen.generate_function(output_dir=outupt_dir, namespace=namespace)
+        metadata = codegen.generate_function(output_dir=output_dir, namespace=namespace)
 
         for f in metadata.generated_files:
-            print("  |- {}".format(os.path.relpath(f, metadata.output_dir)))
+            print(os.path.relpath(f, metadata.output_dir))
 
         inputs, outputs = self._get_compute_posterior_io()
         codegen = Codegen(inputs=inputs, outputs=outputs, config=config, name="compute_posterior")
-        metadata = codegen.generate_function(output_dir=outupt_dir, namespace=namespace)
+        metadata = codegen.generate_function(output_dir=output_dir, namespace=namespace, shared_types=shared_types)
 
         for f in metadata.generated_files:
-            print("  |- {}".format(os.path.relpath(f, metadata.output_dir)))
+            print(os.path.relpath(f, metadata.output_dir))
+
+    def generate_cpp(self, **kwargs):
+        self.generate(config=CppConfig(), **kwargs)
+
+    def generate_python(self, **kwargs):
+        self.generate(config=PythonConfig(), **kwargs)

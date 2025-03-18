@@ -1,5 +1,8 @@
 import logging
-import os
+import symforce
+
+symforce.set_epsilon_to_number(1e-9)
+
 from spectre.ekf import EKFBuilder
 from symforce import symbolic as sf
 from pathlib import Path
@@ -8,19 +11,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-builder = EKFBuilder()
+builder = EKFBuilder(integrator="rk4", include_indentity_measurement=True)
 
 builder.set_state_vector(["x", "y", "dx", "dy"])
 builder.set_control_vector(["fx", "fy"])
 builder.set_parameter_vector(["m"])
 builder.set_measurement_vector(["speed"])
-
-
-dirname = Path("ekf_codegen") / "python"
-for root, _, files in os.walk(dirname):
-    for filename in files:
-        if filename.endswith(".py"):
-            print(Path(dirname) / root / filename)
 
 
 def process_model(x: EKFBuilder.StateVector, u: EKFBuilder.ControlVector, params: EKFBuilder.ParameterVector):
@@ -45,5 +41,8 @@ def measurement_model(x: EKFBuilder.StateVector):
 builder.set_process_model_func(process_model)
 builder.set_measurement_model_func(measurement_model)
 
-builder.debug_print()
-builder.generate_cpp()
+
+output_dir = Path(__file__).resolve().parent / "codegen"
+# builder.debug_print()
+# builder.generate_cpp()
+builder.generate_python(output_dir=output_dir)

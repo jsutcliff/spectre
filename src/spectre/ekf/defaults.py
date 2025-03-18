@@ -57,10 +57,6 @@ def default_measurement_model(measurement_class: Type[Any]) -> Callable:
     return fcn
 
 
-def default_measurement_covarience():
-    return None
-
-
 def default_post_state_update() -> Callable:
     """Generates default function to be called after the EKF state is modified
 
