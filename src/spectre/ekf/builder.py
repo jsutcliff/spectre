@@ -305,7 +305,7 @@ class EKFBuilder(BaseBuilder):
             z_identity = self.StateVector()
 
             for var in self.StateVector.VARIABLES:
-                z_identity[var] = args["x"][var]
+                z_identity[var] = self.StateVector(x)[var]
 
             z = z_identity.as_matrix().col_join(z)
 
@@ -473,14 +473,26 @@ class EKFBuilder(BaseBuilder):
 
         inputs["x"] = self.StateVector.as_symbolic_matrix()
         inputs["p"] = self.StateMatrix.as_symbolic_matrix()
-        inputs["z"] = self.MeasurementVector.as_symbolic_matrix()
-        inputs["measurement_mask"] = self.MeasurementVector.as_symbolic_matrix(prefix="mask_")
 
-        if self.include_indentity_measurement_:
-            inputs["z"] = self.StateVector.as_symbolic_matrix(prefix="meas_").col_join(inputs["z"])
-            inputs["measurement_mask"] = self.StateVector.as_symbolic_matrix(prefix="mask_meas_").col_join(inputs["measurement_mask"])
+        args: Dict[str, Any] = {"x": inputs["x"], "p": inputs["p"]}
 
-        args: Dict[str, Any] = {"x": inputs["x"], "p": inputs["p"], "z": inputs["z"], "measurement_mask": inputs["measurement_mask"]}
+        if self.MeasurementVector.is_configured():
+            inputs["z"] = self.MeasurementVector.as_symbolic_matrix()
+            inputs["measurement_mask"] = self.MeasurementVector.as_symbolic_matrix(prefix="mask_")
+
+            if self.include_indentity_measurement_:
+                inputs["z"] = self.StateVector.as_symbolic_matrix(prefix="meas_").col_join(inputs["z"])
+                inputs["measurement_mask"] = self.StateVector.as_symbolic_matrix(prefix="mask_meas_").col_join(inputs["measurement_mask"])
+
+            args["z"] = inputs["z"]
+            args["measurement_mask"] = inputs["measurement_mask"]
+
+        elif self.include_indentity_measurement_:
+            inputs["z"] = self.StateVector.as_symbolic_matrix(prefix="meas_")
+            inputs["measurement_mask"] = self.StateVector.as_symbolic_matrix(prefix="mask_meas_")
+
+            args["z"] = inputs["z"]
+            args["measurement_mask"] = inputs["measurement_mask"]
 
         if self.measurement_covariance_func_ is None:
             r = self.MeasurementMatrix.as_symbolic_matrix(name="ext_r")
@@ -512,15 +524,23 @@ class EKFBuilder(BaseBuilder):
         dt = sf.Symbol("dt")
         state = self.StateVector.as_symbolic_matrix()
         p = self.StateMatrix.as_symbolic_matrix(name="p")
-        z = self.MeasurementVector.as_symbolic_matrix()
-        z_mask = self.MeasurementVector.as_symbolic_matrix(prefix="mask_")
+        z = None
+        z_mask = None
 
         logging.info("State vector:\n%s", state)
         logging.info("State uncertainty:\n%s", p)
 
-        if self.include_indentity_measurement_:
-            z = self.StateVector.as_symbolic_matrix(prefix="meas_").col_join(z)
-            z_mask = self.StateVector.as_symbolic_matrix(prefix="mask_meas_").col_join(z_mask)
+        if self.MeasurementVector.is_configured():
+            z = self.MeasurementVector.as_symbolic_matrix()
+            z_mask = self.MeasurementVector.as_symbolic_matrix(prefix="mask_")
+
+            if self.include_indentity_measurement_:
+                z = self.StateVector.as_symbolic_matrix(prefix="meas_").col_join(z)
+                z_mask = self.StateVector.as_symbolic_matrix(prefix="mask_meas_").col_join(z_mask)
+
+        elif self.include_indentity_measurement_:
+            z = self.StateVector.as_symbolic_matrix(prefix="meas_")
+            z_mask = self.StateVector.as_symbolic_matrix(prefix="mask_meas_")
 
         logging.info("Measurement vector:\n%s", z)
         logging.info("Measurement mask:\n%s", z_mask)
@@ -561,6 +581,9 @@ class EKFBuilder(BaseBuilder):
 
         logging.info("Measurement covariance matrix:\n%s", r)
 
+        z_hat = self._measurement_model(state, **args)
+        logging.info("measurement model:\n%s", z_hat)
+
         # Measurement transition
         h = self._compute_meas_transition(state, z_mask)
         logging.info("Measurement transition matrix:\n%s", h)
@@ -568,6 +591,7 @@ class EKFBuilder(BaseBuilder):
         # Measurement innovation covariance
         s = self._compute_innov_cov(state, p, z, h, r=r)
         logging.info("Measurement innovation covariance:\n%s", s)
+        logging.info("Measurement innovation covariance inverse:\n%s", s.inv())
 
         # Kalman gain
         k = self._compute_kalman_gain(state, p, z, h, r=r)
@@ -576,7 +600,7 @@ class EKFBuilder(BaseBuilder):
         # Complete posterior update
         x_hat, p_hat = self._compute_posterior(state, p, z, z_mask, r=r, **args)
         logging.debug("Posterior updated state:\n%s", x_hat)
-        logging.debug("Posterior updated uncertainty:\n%s", p_hat)
+        # logging.debug("Posterior updated uncertainty:\n%s", p_hat)
 
     def generate(self, config, output_dir: str = "ekf_codegen", namespace: str = "ekf"):
         shared_types = {"params": f"{namespace}.params_t"}
